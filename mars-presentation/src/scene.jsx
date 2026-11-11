@@ -159,13 +159,13 @@ function World({ slide, reduced }) {
     spin.current.rotation.y += reduced ? 0 : dt * 0.12;
 
     // Visibility of the orbit system and the moons fades with the slide.
-    const fade = (key, on) => { st.vis[key] += ((on ? 1 : 0) - st.vis[key]) * (1 - Math.exp(-dt * 5)); return st.vis[key]; };
+    const fade = (key, on) => { st.vis[key] = reduced ? (on ? 1 : 0) : st.vis[key] + ((on ? 1 : 0) - st.vis[key]) * (1 - Math.exp(-dt * 5)); return st.vis[key]; };
     const ov = fade('orbit', slide === 2), mv = fade('moons', slide === 5);
 
     // Light: from the Sun on the orbit slide, from the upper left otherwise.
     const target = slide === 2 ? tmp.copy(SUN).sub(mars.current.position).normalize() : tmp.set(-0.6, 0.45, 0.65).normalize();
-    light.lerp(target, 1 - Math.exp(-dt * 4)).normalize();
-    if (atmo.current) atmo.current.material.opacity += ((slide === 4 ? 1 : 0.75) - atmo.current.material.opacity) * (1 - Math.exp(-dt * 4));
+    light.lerp(target, reduced ? 1 : 1 - Math.exp(-dt * 4)).normalize();
+    if (atmo.current) atmo.current.material.opacity += ((slide === 4 ? 1 : 0.75) - atmo.current.material.opacity) * (reduced ? 1 : 1 - Math.exp(-dt * 4));
 
     sunGroup.current.visible = ov > 0.01;
     sunGroup.current.scale.setScalar(0.6 + 0.4 * ov);
@@ -220,7 +220,7 @@ export default function MarsScene({ slide, reduced, dpr }) {
       className="scene"
       dpr={dpr}
       resize={{ offsetSize: true }}
-      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
+      gl={{ antialias: true, alpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true }}
       camera={{ position: [0, 0, 6], fov: 40 }}
       style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
     >

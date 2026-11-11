@@ -1,8 +1,12 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Component, Suspense, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ShaderGradientCanvas, ShaderGradient } from '@shadergradient/react';
 import { LiquidMetal } from '@paper-design/shaders-react';
 import MarsScene from './scene.jsx';
+import { FORMATS, captureAll, shoot, buildPdf, buildPptx, buildPng, buildHtml } from './export.js';
+
+const Capture = createContext(false);
+const TITLES = ['Марс — Червона планета', 'Марс у цифрах', 'Четверта від Сонця', 'Планета рекордів', 'Тонка холодна оболонка', 'Фобос і Деймос', 'Шлях до Марса', 'Марс — наступний крок людства'];
 
 const N = 8;
 const reducedQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
@@ -32,6 +36,7 @@ function hasWebGL() {
 // Liquid metal wordmark (Paper Shaders, the engine behind paper-design/liquid-logo):
 // the word is drawn into a transparent PNG and the shader turns its shape into metal.
 function MetalWord({ text, width, height, weight = 800, active }) {
+  const capture = useContext(Capture);
   const [src, setSrc] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -63,7 +68,8 @@ function MetalWord({ text, width, height, weight = 800, active }) {
           distortion={0.1}
           contour={0.4}
           angle={70}
-          speed={active && !reducedQuery?.matches ? 0.6 : 0}
+          speed={active && !reducedQuery?.matches && !capture ? 0.6 : 0}
+          webGlContextAttributes={{ preserveDrawingBuffer: true }}
           scale={1}
           fit="contain"
           style={{ width: '100%', height: '100%' }}
@@ -75,15 +81,16 @@ function MetalWord({ text, width, height, weight = 800, active }) {
 
 // Counter that counts up when its slide opens (Animate UI's CountingNumber idea).
 function Count({ to, decimals = 0, active, suffix = '' }) {
+  const capture = useContext(Capture);
   const [v, setV] = useState(to);
   useEffect(() => {
-    if (!active || reducedQuery?.matches) { setV(to); return; }
+    if (!active || reducedQuery?.matches || capture) { setV(to); return; }
     let raf, t0;
     const dur = 1400, ease = (x) => 1 - Math.pow(1 - x, 4);
     const tick = (t) => { t0 ??= t; const k = Math.min((t - t0 - 250) / dur, 1); setV(to * ease(Math.max(k, 0))); if (k < 1) raf = requestAnimationFrame(tick); };
     setV(0); raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [active, to]);
+  }, [active, to, capture]);
   const s = v.toLocaleString('uk-UA', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
   return <span className="num">{s}{suffix}</span>;
 }
@@ -270,11 +277,56 @@ function App() {
   const scale = useStageScale();
   const gl = useRef(hasWebGL()).current;
   const touch = useRef(null);
+  const stage = useRef(null);
+  const [downloads, setDownloads] = useState(null);
+  const [menu, setMenu] = useState(false);
+  const [job, setJob] = useState(null); // { label, done, total }
+  const [toast, setToast] = useState(null);
+  const capturing = !!job;
 
-  const go = useCallback((d) => setSlide((s) => Math.min(Math.max(s + d, 0), N - 1)), []);
+  useEffect(() => {
+    let alive = true;
+    window.claude?.use?.('downloads').then((d) => { if (alive) setDownloads(d); }, () => {});
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3200); return () => clearTimeout(t); }, [toast]);
+
+  const runExport = async (f) => {
+    setMenu(false);
+    const back = slide;
+    try {
+      let data;
+      if (f.id === 'html') data = buildHtml();
+      else if (f.id === 'png') {
+        setJob({ label: 'Готую картинку слайда', done: 0, total: 1 });
+        await new Promise((r) => setTimeout(r, 700));
+        data = await buildPng(await shoot(stage.current));
+      } else {
+        setJob({ label: `Готую ${f.label}`, done: 0, total: N });
+        const shots = await captureAll(stage.current, setSlide, N, (done) => setJob((j) => j && { ...j, done }));
+        data = f.id === 'pdf' ? await buildPdf(shots) : await buildPptx(shots, TITLES);
+      }
+      setJob(null); setSlide(back);
+      const name = f.id === 'png' ? `Марс — слайд ${back + 1}.png` : `Марс — Червона планета${f.ext}`;
+      await downloads.save({ filename: name, data });
+      setToast(`Збережено: ${name}`);
+    } catch (e) {
+      setJob(null); setSlide(back);
+      const code = e && e.code;
+      if (code === 'declined') setToast('Збереження скасовано');
+      else if (code === 'rate_limited') setToast('Зачекайте, вікно збереження вже відкрите');
+      else if (code === 'too_large') setToast('Файл завеликий для цього місця');
+      else setToast('Не вдалося зберегти файл тут. Спробуйте інший формат.');
+    }
+  };
+
+  const busy = useRef(false); busy.current = !!job;
+  const go = useCallback((d) => { if (!busy.current) setSlide((s) => Math.min(Math.max(s + d, 0), N - 1)); }, []);
   useEffect(() => { const h = `#slide-${slide + 1}`; if (location.hash !== h) history.replaceState(null, '', h); }, [slide]);
   useEffect(() => {
     const onKey = (e) => {
+      if (e.key === 'Escape') { setMenu(false); return; }
+      if (document.activeElement?.closest?.('.exp')) return;
       if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(1); }
       else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(-1); }
       else if (e.key === 'Home') setSlide(0);
@@ -291,17 +343,19 @@ function App() {
   const g = GRADIENTS[slide];
 
   return (
+    <Capture.Provider value={capturing}>
     <div
-      className="viewport"
+      className={`viewport${capturing ? ' capturing' : ''}`}
       onTouchStart={(e) => { touch.current = e.touches[0].clientX; }}
       onTouchEnd={(e) => { const dx = e.changedTouches[0].clientX - (touch.current ?? 0); if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1); }}
     >
       <div className="stage" style={{ transform: `translate(-50%, -50%) scale(${scale})` }}>
+        <div className="frame" ref={stage}>
         <div className="bg-fallback" />
         {gl && (
           <Guard>
             <div className="gradient">
-              <ShaderGradientCanvas pixelDensity={0.6} fov={45} pointerEvents="none" lazyLoad={false} style={{ position: 'absolute', inset: 0 }}>
+              <ShaderGradientCanvas pixelDensity={0.6} fov={45} pointerEvents="none" lazyLoad={false} preserveDrawingBuffer style={{ position: 'absolute', inset: 0 }}>
                 <ShaderGradient
                   control="props" type="waterPlane" animate={reduced ? 'off' : 'on'}
                   uSpeed={0.12} uStrength={1.6} uDensity={1.3} uFrequency={5.5} uAmplitude={1}
@@ -317,21 +371,44 @@ function App() {
         <div className="vignette" />
         {gl ? (
           <Guard fallback={<div className="css-mars" data-slide={slide} />}>
-            <Suspense fallback={null}><MarsScene slide={slide} reduced={reduced} dpr={dpr} /></Suspense>
+            <Suspense fallback={null}><MarsScene slide={slide} reduced={reduced || capturing} dpr={capturing ? 1 : dpr} /></Suspense>
           </Guard>
         ) : <div className="css-mars" data-slide={slide} />}
         <Slides slide={slide} />
         <footer className="foot">
           <span>Марс · Астрономія</span>
           <div className="nav">
-            <button type="button" className="glass pill" onClick={() => go(-1)} disabled={slide === 0} aria-label="Попередній слайд">←</button>
+            {downloads && (
+              <div className="exp no-export">
+                <button type="button" className="glass exp-btn" aria-expanded={menu} aria-haspopup="menu" onClick={() => setMenu((m) => !m)} disabled={capturing}>Експорт <span aria-hidden="true">↓</span></button>
+                {menu && (
+                  <div className="glass exp-menu" role="menu">
+                    {FORMATS.map((f) => (
+                      <button key={f.id} type="button" role="menuitem" onClick={() => runExport(f)}><b>{f.label}</b><small>{f.hint}</small><em>{f.ext}</em></button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <button type="button" className="glass pill no-export" onClick={() => go(-1)} disabled={slide === 0} aria-label="Попередній слайд">←</button>
             <span className="count"><b>{String(slide + 1).padStart(2, '0')}</b> / {String(N).padStart(2, '0')}</span>
-            <button type="button" className="glass pill" onClick={() => go(1)} disabled={slide === N - 1} aria-label="Наступний слайд">→</button>
+            <button type="button" className="glass pill no-export" onClick={() => go(1)} disabled={slide === N - 1} aria-label="Наступний слайд">→</button>
           </div>
         </footer>
-        <div className="progress" aria-hidden="true"><i style={{ transform: `scaleX(${(slide + 1) / N})` }} /></div>
+        {job && (
+          <div className="veil no-export" role="status" aria-live="polite">
+            <div className="glass">
+              <p>{job.label}… {job.total > 1 ? `${Math.min(job.done + 1, job.total)} / ${job.total}` : ''}</p>
+              <div className="track"><i style={{ transform: `scaleX(${job.total ? job.done / job.total : 0})` }} /></div>
+            </div>
+          </div>
+        )}
+        {toast && <div className="toast glass no-export" role="status">{toast}</div>}
+        <div className="progress no-export" aria-hidden="true"><i style={{ transform: `scaleX(${(slide + 1) / N})` }} /></div>
+      </div>
       </div>
     </div>
+    </Capture.Provider>
   );
 }
 

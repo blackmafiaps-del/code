@@ -10,10 +10,16 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/manrope": "^5.2.8",
+    "@fontsource/unbounded": "^5.2.8",
     "@paper-design/shaders-react": "^0.0.82",
     "@react-three/fiber": "^9.3.0",
     "@shadergradient/react": "^2.4.20",
     "esbuild": "^0.25.10",
+    "html-to-image": "^1.11.13",
+    "jspdf": "^3.0.3",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.180.0"
