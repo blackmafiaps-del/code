@@ -1,0 +1,184 @@
+<title>Марс — Червона планета</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@400;600;800&family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: a fixed 1920×1080 stage scaled to the window; 3D Mars and a shader-gradient sky
+   live under the slides and transform between them. One deliberate dark look (deep space). */
+:root {
+  --bg: #0B0710;       /* space */
+  --fg: #F6EDE4;       /* warm white */
+  --muted: #C9B8AE;    /* dust */
+  --faint: #9A8880;
+  --accent: #FF6B3D;   /* Martian rust */
+  --sun: #FFC857;
+  --earth: #6FB7FF;
+  --glass: rgba(255, 236, 224, 0.07);
+  --glass-edge: rgba(255, 236, 224, 0.22);
+  --display: 'Unbounded', 'Arial Black', Arial, sans-serif;
+  --body: 'Manrope', 'Segoe UI', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);   /* Animate UI ease.out */
+  --ease-away: cubic-bezier(0.33, 0.17, 0.67, 0.5);
+  color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+h1, h2, h3, p, figure { margin: 0; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); overflow: hidden; padding-left: max(0px, env(safe-area-inset-left, 0px)); padding-right: max(0px, env(safe-area-inset-right, 0px)); }
+#root, .viewport { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 50% 50%; overflow: hidden; background: var(--bg); }
+.bg-fallback { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 60% at 25% 30%, #4a160e 0%, transparent 70%), radial-gradient(ellipse 60% 70% at 85% 70%, #2a0d12 0%, transparent 70%), var(--bg); }
+.gradient { position: absolute; inset: 0; opacity: 0.9; }
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 85% 80% at 50% 50%, transparent 40%, rgba(11, 7, 16, 0.75) 100%), linear-gradient(90deg, rgba(11, 7, 16, 0.55) 0%, transparent 55%); }
+
+.slide { position: absolute; inset: 0; padding: 112px 128px 168px; display: flex; flex-direction: column; gap: 16px; visibility: hidden; pointer-events: none; }
+.slide.on { visibility: visible; pointer-events: auto; }
+.slide > *, .slide .r { min-width: 0; }
+.grow { flex: 1; }
+
+/* Entrance: Animate UI page recipe — fade on ease.out, rise ≤16px, out of a light blur, 90ms stagger. */
+.r { opacity: 0; }
+.slide.on .r { animation: rise 0.7s var(--ease-out) both; animation-delay: calc(var(--i) * 90ms + 280ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); filter: blur(4px); } to { opacity: 1; transform: none; filter: none; } }
+.slide:not(.on) .r { animation: leave 0.2s var(--ease-away) both; visibility: visible; }
+@keyframes leave { from { opacity: 1; } to { opacity: 0; filter: blur(4px); transform: translateY(-8px); } }
+
+.eyebrow { font: 700 24px/1 var(--body); letter-spacing: 6px; text-transform: uppercase; color: var(--accent); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; }
+h1 { font-size: 96px; font-weight: 800; line-height: 1.05; letter-spacing: -2px; max-width: 1080px; }
+h2 { font-size: 72px; font-weight: 600; line-height: 1.1; letter-spacing: -1px; }
+h3 { font-size: 32px; font-weight: 600; line-height: 1.2; color: var(--fg); }
+p { font-size: 24px; line-height: 1.45; color: var(--muted); }
+.muted { color: var(--faint); font-size: 24px; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Liquid glass (after dashersw/liquid-glass-js): refraction at the edges, blur, specular rim. */
+.glass { position: relative; background: var(--glass); border-radius: 28px; backdrop-filter: blur(16px) saturate(170%); -webkit-backdrop-filter: blur(16px) saturate(170%);
+  box-shadow: inset 1.5px 1.5px 0 var(--glass-edge), inset -1px -1px 0 rgba(255, 236, 224, 0.06), 0 24px 60px rgba(0, 0, 0, 0.35); }
+.lg .glass { backdrop-filter: url(#liquid-glass) blur(10px) saturate(170%); }
+.glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(135deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0) 70%, rgba(255, 180, 140, 0.08) 100%); }
+.card { padding: 32px; display: flex; flex-direction: column; gap: 10px; }
+.card h3 { color: var(--accent); }
+.card p { color: #E4D6CC; }
+
+/* 1 · cover */
+.s-cover { gap: 20px; }
+.metal-wrap { margin-left: -40px; }
+.metal { position: relative; }
+.metal canvas { display: block; }
+.sub { font: 400 64px/1.1 var(--display); color: var(--fg); }
+.lead { font-size: 32px; max-width: 860px; }
+.hint { font-size: 24px; color: var(--faint); margin-top: 24px; }
+kbd { font: 500 22px var(--mono); padding: 4px 12px; border-radius: 10px; border: 1px solid var(--glass-edge); color: var(--fg); background: var(--glass); }
+
+/* 2 · stats */
+.grid3 { margin-top: 72px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; }
+.stat { padding: 40px; display: flex; flex-direction: column; gap: 14px; min-height: 236px; }
+.big { font: 600 72px/1.05 var(--display); color: var(--accent); white-space: nowrap; }
+
+/* 3 · orbit */
+.facts { margin-top: 48px; display: flex; flex-direction: column; gap: 30px; width: 800px; }
+.fact { display: grid; grid-template-columns: 290px 1fr; gap: 28px; align-items: center; padding-bottom: 28px; border-bottom: 1px solid rgba(246, 237, 228, 0.12); }
+.fact h3 { color: var(--accent); white-space: nowrap; }
+.legend { display: flex; gap: 36px; align-items: center; flex-wrap: wrap; margin-top: auto; }
+.legend span { display: flex; gap: 12px; align-items: center; font-size: 24px; color: var(--fg); }
+.legend i { width: 18px; height: 18px; border-radius: 50%; display: inline-block; }
+.legend .muted { color: var(--faint); }
+
+/* 4 · surface */
+.slide:has(.peaks) { display: grid; grid-template-columns: 760px 1fr; grid-template-rows: auto auto 1fr; column-gap: 64px; row-gap: 16px; }
+.slide:has(.peaks) > .eyebrow, .slide:has(.peaks) > h2 { grid-column: 1 / -1; }
+.peaks { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; }
+.peaks svg { width: 760px; height: 400px; overflow: visible; }
+.grow-up { transform-box: fill-box; transform-origin: 50% 100%; }
+.slide.on .grow-up { animation: grow 1.4s var(--ease-out) both 0.55s; }
+.slide.on .grow-up.d2 { animation-delay: 0.75s; }
+@keyframes grow { from { transform: scaleY(0); } to { transform: none; } }
+.peak-labels { display: flex; justify-content: space-between; font-size: 24px; color: var(--fg); }
+.peak-labels b { color: var(--accent); }
+.stack { margin-top: 140px; display: flex; flex-direction: column; gap: 22px; }
+
+/* 5 · atmosphere (planet horizon below) */
+.atmo { margin-top: 40px; display: grid; grid-template-columns: 600px repeat(3, 1fr); gap: 24px; align-items: start; }
+.huge { font: 700 140px/1 var(--display); color: var(--accent); white-space: nowrap; }
+.lead2 { font-size: 28px; color: var(--fg); margin: 10px 0 22px; }
+.bar { display: flex; gap: 6px; height: 22px; }
+.bar i { border-radius: 8px; }
+.small-legend { margin-top: 18px; gap: 22px; }
+.small-legend span { font-size: 24px; }
+
+/* 6 · moons */
+.moons { margin-top: 56px; display: flex; flex-direction: column; gap: 24px; width: 800px; }
+.note { font-size: 24px; color: var(--fg); max-width: 820px; }
+.note.wide { max-width: 1400px; font-size: 32px; }
+
+/* 7 · timeline */
+.timeline { position: relative; margin-top: 110px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 28px; }
+.timeline .line { position: absolute; left: 0; right: 0; top: 9px; height: 2px; background: linear-gradient(90deg, var(--accent), rgba(255, 107, 61, 0.15)); transform-origin: 0 50%; }
+.slide.on .timeline .line { animation: draw 1.6s var(--ease-out) both 0.4s; }
+@keyframes draw { from { transform: scaleX(0); } }
+.ms { display: flex; flex-direction: column; gap: 10px; }
+.dot { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 6px rgba(255, 107, 61, 0.18), 0 0 24px rgba(255, 107, 61, 0.7); }
+.year { font: 600 64px/1.1 var(--display); color: var(--accent); margin-top: 8px; }
+.ms h3 { font: 800 26px/1.3 var(--body); }
+
+/* 8 · outro */
+.s-outro h1 { max-width: 1100px; margin-top: 8px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+.s-outro > .eyebrow { order: 0; } .s-outro > h1 { order: 1; } .thanks { order: 2; margin: 8px 0 0 -24px; } .s-outro > .grow { order: 3; } .s-outro > .cols { order: 4; }
+
+.foot { position: absolute; left: 128px; right: 128px; bottom: 52px; display: flex; justify-content: space-between; align-items: center; font-size: 24px; color: var(--faint); }
+.nav { display: flex; gap: 18px; align-items: center; }
+.count { font: 500 24px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.count b { color: var(--fg); font-weight: 500; }
+.pill { width: 64px; height: 64px; border-radius: 50%; border: 0; color: var(--fg); font: 600 26px var(--body); cursor: pointer; transition: background 0.2s ease, transform 0.15s var(--ease-out); }
+@media (hover: hover) and (pointer: fine) { .pill:hover:not(:disabled) { background: rgba(255, 236, 224, 0.16); } }
+.pill:active:not(:disabled) { transform: scale(0.97); }
+.pill:disabled { opacity: 0.35; cursor: default; }
+.pill:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(246, 237, 228, 0.08); }
+.progress i { display: block; height: 100%; background: var(--accent); transform-origin: 0 50%; transition: transform 0.6s var(--ease-out); }
+
+/* No-WebGL fallback planet */
+.css-mars { position: absolute; width: 840px; height: 840px; left: 1120px; top: 130px; border-radius: 50%; background: radial-gradient(circle at 32% 30%, #FF9A66, #D9532A 45%, #3A120A); box-shadow: 0 0 120px rgba(255, 91, 46, 0.35); transition: all 1s var(--ease-out); }
+.css-mars:not([data-slide="0"]) { width: 220px; height: 220px; left: 1590px; top: 84px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .slide.on .r { animation: fade 0.3s ease both; }
+  .slide:not(.on) .r { animation: none; opacity: 0; }
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+  .slide.on .grow-up, .slide.on .timeline .line { animation: none; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="liquid-glass" x="0" y="0" width="1" height="1" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+    <feImage id="lg-map" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map"/>
+    <feDisplacementMap in="SourceGraphic" in2="map" scale="0.06" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div id="root"></div>
+<script>
+// Edge-refraction map for the liquid glass: neutral (128) in the middle, bending toward the
+// centre in a band along the edges, like a thick rounded pane of glass.
+(function () {
+  try {
+    var S = 128, c = document.createElement('canvas'); c.width = c.height = S;
+    var x = c.getContext('2d'), img = x.createImageData(S, S), d = img.data, band = 0.16;
+    for (var j = 0; j < S; j++) for (var i = 0; i < S; i++) {
+      var u = (i + 0.5) / S, v = (j + 0.5) / S;
+      var ex = Math.min(u, 1 - u), ey = Math.min(v, 1 - v);
+      var kx = Math.max(0, 1 - ex / band), ky = Math.max(0, 1 - ey / band);
+      var dx = (u < 0.5 ? 1 : -1) * kx * kx, dy = (v < 0.5 ? 1 : -1) * ky * ky;
+      var o = (j * S + i) * 4; d[o] = 128 + dx * 127; d[o + 1] = 128 + dy * 127; d[o + 2] = 128; d[o + 3] = 255;
+    }
+    x.putImageData(img, 0, 0);
+    document.getElementById('lg-map').setAttribute('href', c.toDataURL());
+    var ua = navigator.userAgentData;
+    if (ua && ua.brands && ua.brands.some(function (b) { return /Chromium/.test(b.brand); })) document.documentElement.classList.add('lg');
+  } catch (e) {}
+})();
+</script>
+<script type="module">/*BUNDLE*/</script>
