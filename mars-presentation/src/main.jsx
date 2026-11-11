@@ -106,7 +106,7 @@ function Slides({ slide }) {
       <section className={`slide s-cover ${on(0) ? 'on' : ''}`} aria-hidden={!on(0)}>
         <R i={0} as="p" className="eyebrow">Астрономія · Сонячна система</R>
         <div className="grow" />
-        <R i={1} className="metal-wrap"><MetalWord text="МАРС" width={980} height={330} active={on(0)} /></R>
+        <R i={1} className="metal-wrap">{slide <= 1 ? <Guard fallback={<p className="metal-fallback">МАРС</p>}><MetalWord text="МАРС" width={980} height={330} active={on(0)} /></Guard> : <div style={{ height: 330 }} />}</R>
         <R i={2} as="p" className="sub">Червона планета</R>
         <R i={3} as="p" className="lead">Четверта планета від Сонця і найближча мета космічних мандрівок людства</R>
         <R i={4} as="p" className="hint"><kbd>→</kbd> або пробіл, щоб почати</R>
@@ -251,7 +251,7 @@ function Slides({ slide }) {
             <R i={2 + k} key={k} className="glass card"><h3>{a}</h3><p>{b}</p></R>
           ))}
         </div>
-        <R i={5} className="thanks"><MetalWord text="Дякую!" width={520} height={120} active={on(7)} /></R>
+        <R i={5} className="thanks">{slide >= 6 ? <Guard fallback={<p className="metal-fallback small">Дякую!</p>}><MetalWord text="Дякую!" width={520} height={120} active={on(7)} /></Guard> : <div style={{ height: 120 }} />}</R>
       </section>
     </>
   );
@@ -322,7 +322,7 @@ function App() {
 
   const busy = useRef(false); busy.current = !!job;
   const go = useCallback((d) => { if (!busy.current) setSlide((s) => Math.min(Math.max(s + d, 0), N - 1)); }, []);
-  useEffect(() => { const h = `#slide-${slide + 1}`; if (location.hash !== h) history.replaceState(null, '', h); }, [slide]);
+  useEffect(() => { const h = `#slide-${slide + 1}`; try { if (location.hash !== h) history.replaceState(null, '', h); } catch { /* sandboxed frame without history */ } }, [slide]);
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') { setMenu(false); return; }
@@ -339,7 +339,8 @@ function App() {
     return () => { removeEventListener('keydown', onKey); removeEventListener('hashchange', onHash); reducedQuery?.removeEventListener?.('change', onRM); };
   }, [go]);
 
-  const dpr = Math.min(Math.max(scale * (window.devicePixelRatio || 1), 0.6), 1.75);
+  const touchDevice = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  const dpr = Math.min(Math.max(scale * (window.devicePixelRatio || 1), 0.6), touchDevice ? 1.25 : 1.75);
   const g = GRADIENTS[slide];
 
   return (
@@ -412,4 +413,34 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+// Last line of defence: if anything still fails, show the slides' text instead of a blank page,
+// and print the browser's error so it can be reported.
+class Root extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="crash">
+        <h2>Марс — Червона планета</h2>
+        <p>Цей пристрій не зміг показати 3D-версію презентації.</p>
+        <p className="crash-code">{String(this.state.error?.message || this.state.error).slice(0, 300)}</p>
+      </div>
+    );
+  }
+}
+
+const errors = [];
+const report = (msg) => {
+  if (!msg || errors.includes(msg) || /ResizeObserver loop/.test(msg)) return;
+  errors.push(msg);
+  let el = document.getElementById('err-note');
+  if (!el) { el = document.createElement('div'); el.id = 'err-note'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+  el.textContent = 'Помилка: ' + errors.slice(-2).join(' · ').slice(0, 400);
+};
+addEventListener('error', (e) => report(e.message || (e.error && e.error.message)));
+addEventListener('unhandledrejection', (e) => report(e.reason && (e.reason.message || String(e.reason))));
+
+try {
+  createRoot(document.getElementById('root')).render(<Root><App /></Root>);
+} catch (e) { report(e.message); }

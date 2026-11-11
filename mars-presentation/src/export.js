@@ -10,6 +10,7 @@ export const FORMATS = [
 ];
 
 const frames = (n = 2) => new Promise((res) => { const f = () => (n-- <= 0 ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); });
+const N_LAST = (count, n) => (n === count - 1 ? n : -1);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export async function shoot(stage) {
@@ -27,7 +28,7 @@ export async function captureAll(stage, show, count, onProgress) {
   for (let n = 0; n < count; n++) {
     onProgress(n);
     show(n);
-    await wait(n === 0 ? 900 : 1300);
+    await wait(n === 0 || n === N_LAST(count, n) ? 1800 : 1300);
     shots.push(await shoot(stage));
   }
   onProgress(count);
